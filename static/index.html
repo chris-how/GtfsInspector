@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GTFS Inspector</title>
+
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ========== TOP BAR ========== -->
+  <header id="topbar">
+    <div class="topbar-left">
+      <div class="logo">
+        <span class="logo-icon">◆</span>
+        <span class="logo-text">GTFS Inspector</span>
+      </div>
+    </div>
+    <div class="topbar-center">
+      <div class="view-toggle">
+        <button class="view-btn active" data-view="explorer">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="12" height="12" rx="2"/><line x1="6" y1="2" x2="6" y2="14"/></svg>
+          Explorer
+        </button>
+        <button class="view-btn" data-view="map">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="6"/><line x1="2" y1="8" x2="14" y2="8"/><path d="M8 2c2 2 2 10 0 12"/><path d="M8 2c-2 2-2 10 0 12"/></svg>
+          Map
+        </button>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="feed-status" id="feedStatusA">
+        <span class="feed-dot dot-empty"></span>
+        <span class="feed-label">Feed A</span>
+      </div>
+      <div class="feed-status" id="feedStatusB">
+        <span class="feed-dot dot-empty"></span>
+        <span class="feed-label">Feed B</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ========== MAIN LAYOUT ========== -->
+  <div id="app">
+
+    <!-- SIDEBAR -->
+    <aside id="sidebar">
+      <!-- Upload Section -->
+      <div class="sidebar-section">
+        <h3 class="section-title">Feeds</h3>
+        <div class="upload-row">
+          <span class="feed-role-tag tag-from">FROM</span>
+          <label class="upload-btn" id="uploadBtnA">
+            <input type="file" accept=".zip" data-slot="A" hidden>
+            <span class="upload-label">
+              <span class="upload-icon">↑</span>
+              <span class="upload-text" id="uploadTextA">Feed A</span>
+            </span>
+          </label>
+          <button class="clear-btn" id="clearBtnA" title="Clear Feed A" style="display:none">✕</button>
+        </div>
+        <div class="upload-row">
+          <span class="feed-role-tag tag-to">TO</span>
+          <label class="upload-btn" id="uploadBtnB">
+            <input type="file" accept=".zip" data-slot="B" hidden>
+            <span class="upload-label">
+              <span class="upload-icon">↑</span>
+              <span class="upload-text" id="uploadTextB">Feed B</span>
+            </span>
+          </label>
+          <button class="clear-btn" id="clearBtnB" title="Clear Feed B" style="display:none">✕</button>
+        </div>
+        <div id="uploadProgress" class="upload-progress" style="display:none">
+          <div class="progress-bar"><div class="progress-fill"></div></div>
+          <span class="progress-text">Parsing…</span>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="sidebar-section" id="filtersSection" style="display:none">
+        <h3 class="section-title">Filters</h3>
+
+        <label class="filter-label">Agency</label>
+        <select id="agencyFilter" class="filter-select">
+          <option value="">All agencies</option>
+        </select>
+
+        <label class="filter-label">Route search</label>
+        <input type="text" id="routeSearch" class="filter-input" placeholder="Search routes…">
+
+        <div id="diffFilterGroup" style="display:none">
+          <label class="filter-label">Diff status</label>
+          <div class="chip-group">
+            <button class="chip active" data-status="all">All</button>
+            <button class="chip chip-added" data-status="added">Added</button>
+            <button class="chip chip-dropped" data-status="dropped">Dropped</button>
+            <button class="chip chip-unchanged" data-status="unchanged">Unchanged</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Route List (for map view) -->
+      <div class="sidebar-section" id="routeListSection" style="display:none">
+        <h3 class="section-title">Routes <span id="routeCount" class="count-badge">0</span></h3>
+        <div id="routeList" class="route-list"></div>
+      </div>
+
+      <!-- File List (for explorer view) -->
+      <div class="sidebar-section" id="fileListSection" style="display:none">
+        <h3 class="section-title">Files</h3>
+        <div id="fileList" class="file-list"></div>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main id="content">
+      <!-- Empty state -->
+      <div id="emptyState" class="empty-state">
+        <div class="empty-icon">
+          <svg width="64" height="64" fill="none" stroke="var(--pink)" stroke-width="1.5" viewBox="0 0 64 64">
+            <rect x="8" y="8" width="48" height="48" rx="8"/>
+            <line x1="24" y1="28" x2="40" y2="28"/>
+            <line x1="24" y1="36" x2="36" y2="36"/>
+            <path d="M20 20 l4-4 l4 4"/>
+          </svg>
+        </div>
+        <h2>Upload a GTFS feed to get started</h2>
+        <p>Drop a .zip file in the Feed A slot, or load two feeds to compare.</p>
+      </div>
+
+      <!-- Explorer view -->
+      <div id="explorerView" class="view-panel" style="display:none">
+        <!-- Single feed table -->
+        <div class="table-container" id="tableContainer">
+          <div class="table-header">
+            <span id="tableTitle" class="table-title">Select a file</span>
+            <span id="tableRowCount" class="table-meta"></span>
+            <button class="download-btn" id="downloadBtn" title="Download as CSV">⬇ CSV</button>
+          </div>
+          <div class="table-scroll" id="tableScroll">
+            <table id="dataTable">
+              <thead id="dataTableHead"></thead>
+              <tbody id="dataTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <!-- Side-by-side diff view -->
+        <div class="diff-container" id="diffContainer" style="display:none">
+          <div class="diff-pane diff-pane-a">
+            <div class="diff-pane-header">
+              <span class="diff-pane-dot" style="background:#DE007B"></span>
+              <span class="diff-pane-title" id="diffTitleA">Feed A</span>
+              <span class="diff-pane-meta" id="diffMetaA"></span>
+            </div>
+            <div class="diff-summary" id="diffSummary"></div>
+            <div class="diff-pane-scroll" id="diffScrollA">
+              <table class="diff-table">
+                <thead id="diffHeadA"></thead>
+                <tbody id="diffBodyA"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="diff-gutter" id="diffGutter"></div>
+          <div class="diff-pane diff-pane-b">
+            <div class="diff-pane-header">
+              <span class="diff-pane-dot" style="background:#0B91DB"></span>
+              <span class="diff-pane-title" id="diffTitleB">Feed B</span>
+              <span class="diff-pane-meta" id="diffMetaB"></span>
+            </div>
+            <div class="diff-summary" id="diffSummaryB"></div>
+            <div class="diff-pane-scroll" id="diffScrollB">
+              <table class="diff-table">
+                <thead id="diffHeadB"></thead>
+                <tbody id="diffBodyB"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Map view -->
+      <div id="mapView" class="view-panel" style="display:none">
+        <div id="map"></div>
+        <button id="fitBoundsBtn" class="fit-bounds-btn" title="Fit map to routes">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M2 6V3a1 1 0 011-1h3M10 2h3a1 1 0 011 1v3M14 10v3a1 1 0 01-1 1h-3M6 14H3a1 1 0 01-1-1v-3"/>
+          </svg>
+        </button>
+        <div id="mapLegend" class="map-legend" style="display:none">
+          <div class="legend-item"><span class="legend-swatch" style="background:#DE007B"></span> Feed A (From)</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:#0B91DB"></span> Feed B (To)</div>
+          <div class="legend-item legend-diff" style="display:none"><span class="legend-swatch" style="background:#22c55e"></span> Added</div>
+          <div class="legend-item legend-diff" style="display:none"><span class="legend-swatch" style="background:#ef4444"></span> Dropped</div>
+          <div class="legend-item legend-diff" style="display:none"><span class="legend-swatch" style="background:#94a3b8"></span> Unchanged</div>
+        </div>
+      </div>
+    </main>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
